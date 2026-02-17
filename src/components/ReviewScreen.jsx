@@ -3,6 +3,7 @@ import { QRCodeSVG } from 'qrcode.react'
 import { motion } from 'framer-motion'
 import { useLocation, useParams, useNavigate } from 'react-router-dom'
 import axios from 'axios'
+import { supabase } from '../lib/supabase'
 import bgImage from '../assets/bg.jpg'
 import logo from '../assets/logo.png'
 import logoGreen from '../assets/logo-green.png'
@@ -62,17 +63,21 @@ export default function ReviewScreen({ gifBlob, captures, selectedPhoto, staticI
         bUrl = fixUrl(adminSession.boomerangUrl)
         sUrl = adminSession.staticImageUrl ? fixUrl(adminSession.staticImageUrl) : null
       } else if (urlSessionId) {
-        // Fetch from API by session number (1=oldest, highest=newest)
-        // Sessions are returned newest-first, so reverse: pit/1 = last in array
+        // Fetch from Supabase by session number (1=oldest, highest=newest)
         try {
-          const res = await axios.get(`${SERVER_URL}/api/sessions`)
-          const sessions = res.data
+          const { data: sessions, error } = await supabase
+            .from('sessions')
+            .select('*')
+            .order('created_at', { ascending: true })
+          
+          if (error) throw error
           const sessionNumber = parseInt(urlSessionId)
-          const sessionIndex = sessions.length - sessionNumber
+          const sessionIndex = sessionNumber - 1
           if (sessionIndex >= 0 && sessionIndex < sessions.length) {
             const session = sessions[sessionIndex]
-            bUrl = session.boomerang_url ? fixUrl(session.boomerang_url) : null
-            sUrl = session.static_image_url ? fixUrl(session.static_image_url) : null
+            // Prefer cloud URLs (Supabase Storage)
+            bUrl = session.cloud_boomerang_url || (session.boomerang_url ? fixUrl(session.boomerang_url) : null)
+            sUrl = session.cloud_static_url || (session.static_image_url ? fixUrl(session.static_image_url) : null)
           }
         } catch (err) {
           console.error('Failed to fetch session:', err)

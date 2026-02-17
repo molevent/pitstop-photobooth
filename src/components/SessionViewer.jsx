@@ -1,8 +1,8 @@
 import { useEffect, useState } from 'react'
 import { useLocation, useNavigate, useParams } from 'react-router-dom'
-import axios from 'axios'
 import { motion, AnimatePresence } from 'framer-motion'
 import { Download, X, FileImage, Film, Image as ImageIcon, Printer, ArrowLeft } from 'lucide-react'
+import { supabase } from '../lib/supabase'
 
 const SERVER_URL = import.meta.env.VITE_SERVER_URL || `http://${window.location.hostname}:3000`
 
@@ -27,8 +27,14 @@ export default function SessionViewer() {
 
   const fetchSession = async () => {
     try {
-      const res = await axios.get(`${SERVER_URL}/api/sessions/${sessionId}`)
-      setSession(res.data)
+      const { data, error } = await supabase
+        .from('sessions')
+        .select('*')
+        .eq('id', sessionId)
+        .single()
+      
+      if (error) throw error
+      setSession(data)
     } catch (err) {
       console.error('Failed to fetch session:', err)
     } finally {
@@ -91,7 +97,7 @@ export default function SessionViewer() {
     images.push({
       type: 'boomerang',
       title: 'Boomerang GIF',
-      url: `${SERVER_URL}/uploads/${session.boomerang_filename}`,
+      url: session.cloud_boomerang_url || `${SERVER_URL}/uploads/${session.boomerang_filename}`,
       filename: `boomerang-${session.id}.gif`,
       icon: Film
     })
@@ -100,7 +106,7 @@ export default function SessionViewer() {
     images.push({
       type: 'static',
       title: 'Stories',
-      url: `${SERVER_URL}/uploads/${session.static_image_filename}`,
+      url: session.cloud_static_url || `${SERVER_URL}/uploads/${session.static_image_filename}`,
       filename: `static-${session.id}.jpg`,
       icon: ImageIcon
     })

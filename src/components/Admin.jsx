@@ -59,11 +59,11 @@ export default function Admin() {
     navigate(`/pit/${sessionNumber}`, { 
       state: { 
         sessionId: session.id,
-        boomerangUrl: session.boomerang_url,
-        staticImageUrl: session.static_image_url,
-        firstPhotoUrl: session.first_photo_filename 
+        boomerangUrl: session.cloud_boomerang_url || session.boomerang_url,
+        staticImageUrl: session.cloud_static_url || session.static_image_url,
+        firstPhotoUrl: session.cloud_static_url || (session.first_photo_filename 
           ? `${SERVER_URL}/uploads/${session.first_photo_filename}`
-          : null
+          : null)
       }
     })
   }
