@@ -138,6 +138,16 @@ export default function ReviewScreen({ gifBlob, captures, selectedPhoto, staticI
     return () => clearTimeout(timeoutId)
   }, [selectedPhoto, staticImageRef])
 
+  // Helper: upload a blob directly to Supabase Storage
+  const uploadToSupabase = async (blob, path, contentType) => {
+    const { error } = await supabase.storage
+      .from('photos')
+      .upload(path, blob, { contentType, upsert: true })
+    if (error) throw error
+    const { data } = supabase.storage.from('photos').getPublicUrl(path)
+    return data.publicUrl
+  }
+
   // Auto-upload on mount (only for new sessions, not admin/URL views)
   useEffect(() => {
     if (isExistingSession) return
@@ -158,31 +168,77 @@ export default function ReviewScreen({ gifBlob, captures, selectedPhoto, staticI
           staticBlob = await staticImageRef.current.generateBlob()
         }
 
-        const formData = new FormData()
-        if (printBlob) {
-          formData.append('print', printBlob, 'print.jpg')
-        }
-        if (gifBlob) {
-          formData.append('boomerang', gifBlob, 'boomerang.gif')
-        }
-        if (staticBlob) {
-          formData.append('staticImage', staticBlob, 'static.jpg')
-        }
-        // Upload first photo for admin gallery
-        if (captures?.[0]) {
-          formData.append('firstPhoto', captures[0], 'first-photo.jpg')
-        }
+        // Detect if backend is available (local Docker) or not (Netlify production)
+        const isProduction = window.location.protocol === 'https:'
 
-        const res = await axios.post(`${SERVER_URL}/upload`, formData, {
-          headers: { 'Content-Type': 'multipart/form-data' },
-        })
+        if (isProduction) {
+          // Direct upload to Supabase Storage + DB (no backend needed)
+          const { v4: uuidv4 } = await import('uuid')
+          const sessionId = uuidv4()
 
-        // Fix URLs: replace Docker internal IP with browser-accessible origin
-        const fixedBoomerangUrl = res.data.boomerangUrl ? fixUrl(res.data.boomerangUrl) : null
-        const fixedStaticUrl = res.data.staticImageUrl ? fixUrl(res.data.staticImageUrl) : null
-        setBoomerangUrl(fixedBoomerangUrl)
-        setStaticImageUrl(fixedStaticUrl)
-        setUploadStatus('done')
+          let cloudBoomerangUrl = null
+          let cloudStaticUrl = null
+          let cloudPrintUrl = null
+          let cloudFirstPhotoUrl = null
+
+          if (gifBlob) {
+            cloudBoomerangUrl = await uploadToSupabase(gifBlob, `${sessionId}/boomerang.gif`, 'image/gif')
+          }
+          if (staticBlob) {
+            cloudStaticUrl = await uploadToSupabase(staticBlob, `${sessionId}/static.jpg`, 'image/jpeg')
+          }
+          if (printBlob) {
+            cloudPrintUrl = await uploadToSupabase(printBlob, `${sessionId}/print.jpg`, 'image/jpeg')
+          }
+          if (captures?.[0]) {
+            cloudFirstPhotoUrl = await uploadToSupabase(captures[0], `${sessionId}/first-photo.jpg`, 'image/jpeg')
+          }
+
+          // Insert session into Supabase DB
+          const { error: dbError } = await supabase.from('sessions').insert({
+            id: sessionId,
+            boomerang_filename: gifBlob ? 'boomerang.gif' : null,
+            boomerang_url: cloudBoomerangUrl,
+            static_image_filename: staticBlob ? 'static.jpg' : null,
+            static_image_url: cloudStaticUrl,
+            print_filename: printBlob ? 'print.jpg' : null,
+            first_photo_filename: captures?.[0] ? 'first-photo.jpg' : null,
+            cloud_boomerang_url: cloudBoomerangUrl,
+            cloud_static_url: cloudStaticUrl,
+            cloud_print_url: cloudPrintUrl,
+            cloud_first_photo_url: cloudFirstPhotoUrl,
+          })
+          if (dbError) throw dbError
+
+          setBoomerangUrl(cloudBoomerangUrl)
+          setStaticImageUrl(cloudStaticUrl)
+          setUploadStatus('done')
+        } else {
+          // Local Docker: upload via backend API
+          const formData = new FormData()
+          if (printBlob) {
+            formData.append('print', printBlob, 'print.jpg')
+          }
+          if (gifBlob) {
+            formData.append('boomerang', gifBlob, 'boomerang.gif')
+          }
+          if (staticBlob) {
+            formData.append('staticImage', staticBlob, 'static.jpg')
+          }
+          if (captures?.[0]) {
+            formData.append('firstPhoto', captures[0], 'first-photo.jpg')
+          }
+
+          const res = await axios.post(`${SERVER_URL}/upload`, formData, {
+            headers: { 'Content-Type': 'multipart/form-data' },
+          })
+
+          const fixedBoomerangUrl = res.data.boomerangUrl ? fixUrl(res.data.boomerangUrl) : null
+          const fixedStaticUrl = res.data.staticImageUrl ? fixUrl(res.data.staticImageUrl) : null
+          setBoomerangUrl(fixedBoomerangUrl)
+          setStaticImageUrl(fixedStaticUrl)
+          setUploadStatus('done')
+        }
       } catch (err) {
         console.error('Upload failed:', err)
         setUploadStatus('error')
