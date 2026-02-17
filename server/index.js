@@ -69,6 +69,8 @@ app.post('/upload', upload.fields([
       try {
         let cloudBoomerangUrl = null
         let cloudStaticUrl = null
+        let cloudPrintUrl = null
+        let cloudFirstPhotoUrl = null
 
         if (boomerangFile) {
           cloudBoomerangUrl = await db.uploadToStorage(
@@ -84,11 +86,23 @@ app.post('/upload', upload.fields([
             'image/jpeg'
           )
         }
-
-        if (cloudBoomerangUrl || cloudStaticUrl) {
-          await db.updateSessionCloudUrls(sessionId, cloudBoomerangUrl, cloudStaticUrl)
-          console.log(`☁️ Cloud upload done for session ${sessionId}`)
+        if (printFile) {
+          cloudPrintUrl = await db.uploadToStorage(
+            printFile.path,
+            `${sessionId}/print.jpg`,
+            'image/jpeg'
+          )
         }
+        if (firstPhotoFile) {
+          cloudFirstPhotoUrl = await db.uploadToStorage(
+            firstPhotoFile.path,
+            `${sessionId}/first-photo.jpg`,
+            'image/jpeg'
+          )
+        }
+
+        await db.updateSessionCloudUrls(sessionId, { cloudBoomerangUrl, cloudStaticUrl, cloudPrintUrl, cloudFirstPhotoUrl })
+        console.log(`☁️ Cloud upload done for session ${sessionId}`)
       } catch (err) {
         console.error('Cloud upload error (non-fatal):', err)
       }

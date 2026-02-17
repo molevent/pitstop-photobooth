@@ -58,7 +58,7 @@ async function migrate() {
   const { data: sessions, error: fetchError } = await supabase
     .from('sessions')
     .select('*')
-    .is('cloud_static_url', null)
+    .or('cloud_static_url.is.null,cloud_print_url.is.null')
     .order('created_at', { ascending: true })
 
   if (fetchError) {
@@ -72,63 +72,53 @@ async function migrate() {
   for (const session of sessions) {
     let cloudBoomerangUrl = null
     let cloudStaticUrl = null
+    let cloudPrintUrl = null
+    let cloudFirstPhotoUrl = null
 
-    // Upload boomerang GIF
-    if (session.boomerang_filename) {
-      const filePath = path.join(uploadsDir, session.boomerang_filename)
-      if (fs.existsSync(filePath)) {
-        try {
-          const fileBuffer = fs.readFileSync(filePath)
-          const storagePath = `${session.id}/boomerang.gif`
-          
-          const { error: uploadErr } = await supabase.storage
-            .from(STORAGE_BUCKET)
-            .upload(storagePath, fileBuffer, { contentType: 'image/gif', upsert: true })
-          
-          if (!uploadErr) {
-            const { data } = supabase.storage.from(STORAGE_BUCKET).getPublicUrl(storagePath)
-            cloudBoomerangUrl = data.publicUrl
-            console.log(`  ✅ Uploaded boomerang for session ${session.id}`)
-          } else {
-            console.log(`  ⚠️ Boomerang upload error: ${uploadErr.message}`)
-          }
-        } catch (err) {
-          console.log(`  ⚠️ File read error: ${err.message}`)
+    // Helper to upload a file
+    async function uploadFile(filename, storagePath, contentType, label) {
+      if (!filename) return null
+      const filePath = path.join(uploadsDir, filename)
+      if (!fs.existsSync(filePath)) return null
+      try {
+        const fileBuffer = fs.readFileSync(filePath)
+        const { error: uploadErr } = await supabase.storage
+          .from(STORAGE_BUCKET)
+          .upload(storagePath, fileBuffer, { contentType, upsert: true })
+        if (!uploadErr) {
+          const { data } = supabase.storage.from(STORAGE_BUCKET).getPublicUrl(storagePath)
+          console.log(`  ✅ Uploaded ${label} for session ${session.id}`)
+          return data.publicUrl
+        } else {
+          console.log(`  ⚠️ ${label} upload error: ${uploadErr.message}`)
         }
+      } catch (err) {
+        console.log(`  ⚠️ ${label} file read error: ${err.message}`)
       }
+      return null
     }
 
-    // Upload static image
-    if (session.static_image_filename) {
-      const filePath = path.join(uploadsDir, session.static_image_filename)
-      if (fs.existsSync(filePath)) {
-        try {
-          const fileBuffer = fs.readFileSync(filePath)
-          const storagePath = `${session.id}/static.jpg`
-          
-          const { error: uploadErr } = await supabase.storage
-            .from(STORAGE_BUCKET)
-            .upload(storagePath, fileBuffer, { contentType: 'image/jpeg', upsert: true })
-          
-          if (!uploadErr) {
-            const { data } = supabase.storage.from(STORAGE_BUCKET).getPublicUrl(storagePath)
-            cloudStaticUrl = data.publicUrl
-            console.log(`  ✅ Uploaded static for session ${session.id}`)
-          } else {
-            console.log(`  ⚠️ Static upload error: ${uploadErr.message}`)
-          }
-        } catch (err) {
-          console.log(`  ⚠️ File read error: ${err.message}`)
-        }
-      }
+    if (!session.cloud_boomerang_url) {
+      cloudBoomerangUrl = await uploadFile(session.boomerang_filename, `${session.id}/boomerang.gif`, 'image/gif', 'boomerang')
+    }
+    if (!session.cloud_static_url) {
+      cloudStaticUrl = await uploadFile(session.static_image_filename, `${session.id}/static.jpg`, 'image/jpeg', 'static')
+    }
+    if (!session.cloud_print_url) {
+      cloudPrintUrl = await uploadFile(session.print_filename, `${session.id}/print.jpg`, 'image/jpeg', 'print')
+    }
+    if (!session.cloud_first_photo_url) {
+      cloudFirstPhotoUrl = await uploadFile(session.first_photo_filename, `${session.id}/first-photo.jpg`, 'image/jpeg', 'first_photo')
     }
 
     // Update session with cloud URLs
-    if (cloudBoomerangUrl || cloudStaticUrl) {
-      const updates = {}
-      if (cloudBoomerangUrl) updates.cloud_boomerang_url = cloudBoomerangUrl
-      if (cloudStaticUrl) updates.cloud_static_url = cloudStaticUrl
+    const updates = {}
+    if (cloudBoomerangUrl) updates.cloud_boomerang_url = cloudBoomerangUrl
+    if (cloudStaticUrl) updates.cloud_static_url = cloudStaticUrl
+    if (cloudPrintUrl) updates.cloud_print_url = cloudPrintUrl
+    if (cloudFirstPhotoUrl) updates.cloud_first_photo_url = cloudFirstPhotoUrl
 
+    if (Object.keys(updates).length > 0) {
       const { error: updateErr } = await supabase
         .from('sessions')
         .update(updates)

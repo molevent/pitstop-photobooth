@@ -82,10 +82,14 @@ const db = {
   },
 
   // Update session with cloud URLs
-  async updateSessionCloudUrls(id, cloudBoomerangUrl, cloudStaticUrl) {
+  async updateSessionCloudUrls(id, { cloudBoomerangUrl, cloudStaticUrl, cloudPrintUrl, cloudFirstPhotoUrl } = {}) {
     const updates = {}
     if (cloudBoomerangUrl) updates.cloud_boomerang_url = cloudBoomerangUrl
     if (cloudStaticUrl) updates.cloud_static_url = cloudStaticUrl
+    if (cloudPrintUrl) updates.cloud_print_url = cloudPrintUrl
+    if (cloudFirstPhotoUrl) updates.cloud_first_photo_url = cloudFirstPhotoUrl
+    
+    if (Object.keys(updates).length === 0) return
     
     const { error } = await supabase
       .from('sessions')

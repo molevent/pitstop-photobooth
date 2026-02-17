@@ -115,7 +115,7 @@ export default function SessionViewer() {
     images.push({
       type: 'print',
       title: 'Print',
-      url: `${SERVER_URL}/uploads/${session.print_filename}`,
+      url: session.cloud_print_url || `${SERVER_URL}/uploads/${session.print_filename}`,
       filename: `print-${session.id}.jpg`,
       icon: FileImage
     })

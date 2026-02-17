@@ -100,6 +100,7 @@ export default function Admin() {
 
   const getThumbnailUrl = (session) => {
     // Priority: cloud URLs (Supabase Storage) > local URLs
+    if (session.cloud_first_photo_url) return session.cloud_first_photo_url
     if (session.cloud_static_url) return session.cloud_static_url
     if (session.cloud_boomerang_url) return session.cloud_boomerang_url
     // Fallback to local
