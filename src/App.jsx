@@ -33,6 +33,7 @@ function MainApp() {
   // State for selected photo and theme
   const [selectedPhoto, setSelectedPhoto] = useState(null)
   const [selectedTheme, setSelectedTheme] = useState('original')
+  const [photoKey, setPhotoKey] = useState(0)
 
   // When status becomes 'processing', generate boomerang then go to selecting
   useEffect(() => {
@@ -49,6 +50,7 @@ function MainApp() {
   const handlePhotoSelect = (photo, theme = 'original') => {
     setSelectedPhoto(photo)
     setSelectedTheme(theme)
+    setPhotoKey(k => k + 1)
     setReview()
   }
 
@@ -63,7 +65,7 @@ function MainApp() {
       <div style={{ position: 'fixed', left: '-9999px', top: '-9999px' }}>
         <PrintCanvas ref={printCanvasRef} captures={captures} />
         {selectedPhoto && (
-          <StaticImageCanvas ref={staticImageRef} photoBlob={selectedPhoto} theme={selectedTheme} />
+          <StaticImageCanvas key={photoKey} ref={staticImageRef} photoBlob={selectedPhoto} theme={selectedTheme} />
         )}
       </div>
 

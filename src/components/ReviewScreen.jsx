@@ -117,13 +117,24 @@ export default function ReviewScreen({ gifBlob, captures, selectedPhoto, staticI
 
   // Generate static image preview with retry
   useEffect(() => {
+    if (!selectedPhoto || !staticImageRef?.current) return
+    
+    // Clear old preview immediately
+    setStaticPreviewUrl(null)
+    
     let timeoutId
+    let retries = 0
+    const MAX_RETRIES = 50 // 5 seconds max
+    
     async function generateStaticPreview() {
-      if (!selectedPhoto || !staticImageRef?.current) return
+      if (!staticImageRef?.current) return
       
       // Wait for canvas to be ready
       if (!staticImageRef.current.isReady()) {
-        timeoutId = setTimeout(generateStaticPreview, 100)
+        retries++
+        if (retries < MAX_RETRIES) {
+          timeoutId = setTimeout(generateStaticPreview, 100)
+        }
         return
       }
       
@@ -131,7 +142,6 @@ export default function ReviewScreen({ gifBlob, captures, selectedPhoto, staticI
       if (blob) {
         const url = URL.createObjectURL(blob)
         setStaticPreviewUrl(url)
-        return () => URL.revokeObjectURL(url)
       }
     }
     generateStaticPreview()
