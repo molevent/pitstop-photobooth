@@ -1,10 +1,8 @@
 import { useEffect, useState, useRef, useCallback } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
-import axios from 'axios'
+import { supabase } from '../lib/supabase'
 import logo from '../assets/logo.png'
 import bgImage from '../assets/bg.jpg'
-
-const SERVER_URL = import.meta.env.VITE_SERVER_URL || `http://${window.location.hostname}:3000`
 
 const fixUrl = (url) => {
   if (!url) return null
@@ -75,17 +73,22 @@ export default function PhotoWall() {
     }
   }
 
-  // Fetch sessions and extract static photos
+  // Fetch sessions from Supabase directly (works on Netlify without backend)
   const fetchPhotos = useCallback(async () => {
     try {
-      const res = await axios.get(`${SERVER_URL}/api/sessions`)
-      const sessions = res.data
+      const { data: sessions, error } = await supabase
+        .from('sessions')
+        .select('id, static_image_filename, static_image_url, cloud_static_url, created_at')
+        .order('created_at', { ascending: true })
 
-      const photoList = [...sessions].reverse()
+      if (error) throw error
+
+      const photoList = sessions
         .filter(s => s.static_image_filename)
-        .map((s, idx) => ({
+        .map((s) => ({
           id: s.id,
-          url: fixUrl(s.static_image_url) || `${window.location.origin}/uploads/${s.static_image_filename}`,
+          // Prefer cloud URL (Supabase Storage), fall back to local URL
+          url: s.cloud_static_url || fixUrl(s.static_image_url) || `${window.location.origin}/uploads/${s.static_image_filename}`,
         }))
 
       if (prevCountRef.current > 0 && photoList.length > prevCountRef.current) {

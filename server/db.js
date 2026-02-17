@@ -5,6 +5,9 @@ const supabaseKey = process.env.SUPABASE_KEY || 'eyJhbGciOiJIUzI1NiIsInR5cCI6Ikp
 
 const supabase = createClient(supabaseUrl, supabaseKey)
 
+// Supabase Storage bucket name
+const STORAGE_BUCKET = 'photos'
+
 // Database operations
 const db = {
   // Insert a new session
@@ -52,6 +55,41 @@ const db = {
     const { error } = await supabase
       .from('sessions')
       .delete()
+      .eq('id', id)
+    
+    if (error) throw error
+  },
+
+  // Upload file to Supabase Storage and return public URL
+  async uploadToStorage(filePath, filename, contentType) {
+    const fs = await import('fs')
+    const fileBuffer = fs.default.readFileSync(filePath)
+    
+    const { error } = await supabase.storage
+      .from(STORAGE_BUCKET)
+      .upload(filename, fileBuffer, {
+        contentType,
+        upsert: true
+      })
+    
+    if (error) throw error
+    
+    const { data } = supabase.storage
+      .from(STORAGE_BUCKET)
+      .getPublicUrl(filename)
+    
+    return data.publicUrl
+  },
+
+  // Update session with cloud URLs
+  async updateSessionCloudUrls(id, cloudBoomerangUrl, cloudStaticUrl) {
+    const updates = {}
+    if (cloudBoomerangUrl) updates.cloud_boomerang_url = cloudBoomerangUrl
+    if (cloudStaticUrl) updates.cloud_static_url = cloudStaticUrl
+    
+    const { error } = await supabase
+      .from('sessions')
+      .update(updates)
       .eq('id', id)
     
     if (error) throw error

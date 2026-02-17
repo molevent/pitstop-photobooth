@@ -64,6 +64,36 @@ app.post('/upload', upload.fields([
       staticImageUrl
     )
 
+    // Upload to Supabase Storage (async, non-blocking for fast response)
+    ;(async () => {
+      try {
+        let cloudBoomerangUrl = null
+        let cloudStaticUrl = null
+
+        if (boomerangFile) {
+          cloudBoomerangUrl = await db.uploadToStorage(
+            boomerangFile.path,
+            `${sessionId}/boomerang.gif`,
+            'image/gif'
+          )
+        }
+        if (staticImageFile) {
+          cloudStaticUrl = await db.uploadToStorage(
+            staticImageFile.path,
+            `${sessionId}/static.jpg`,
+            'image/jpeg'
+          )
+        }
+
+        if (cloudBoomerangUrl || cloudStaticUrl) {
+          await db.updateSessionCloudUrls(sessionId, cloudBoomerangUrl, cloudStaticUrl)
+          console.log(`☁️ Cloud upload done for session ${sessionId}`)
+        }
+      } catch (err) {
+        console.error('Cloud upload error (non-fatal):', err)
+      }
+    })()
+
     res.json({
       sessionId,
       printUrl,
