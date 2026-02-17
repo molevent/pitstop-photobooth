@@ -421,7 +421,8 @@ export default function ReviewScreen({ gifBlob, captures, selectedPhoto, staticI
               <img
                 src={gifPreviewUrl}
                 alt="Boomerang"
-                className="rounded-2xl shadow-2xl max-h-[35vh] md:max-h-[40vh] lg:max-h-[45vh] w-auto"
+                className="rounded-2xl shadow-2xl max-h-[35vh] md:max-h-[40vh] lg:max-h-[45vh] w-auto cursor-pointer hover:opacity-90 transition-opacity"
+                onClick={() => boomerangUrl && window.open(boomerangUrl, '_blank')}
               />
             ) : activePreview === 'static' && staticPreviewUrl ? (
               <img
