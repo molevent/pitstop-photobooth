@@ -3,9 +3,11 @@ import axios from 'axios'
 import { useNavigate } from 'react-router-dom'
 import { Trash2, Image as ImageIcon, Film, FileImage, X, Printer, AlertTriangle, Eye, LayoutGrid, Download } from 'lucide-react'
 import { motion, AnimatePresence } from 'framer-motion'
+import { supabase } from '../lib/supabase'
 import downloadButton from '../../Button/Button-Download.png'
 
 const SERVER_URL = import.meta.env.VITE_SERVER_URL || `http://${window.location.hostname}:3000`
+const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL || 'https://khntkottpfjotcuboxml.supabase.co'
 
 export default function Admin() {
   const [sessions, setSessions] = useState([])
@@ -29,8 +31,13 @@ export default function Admin() {
 
   const fetchSessions = async () => {
     try {
-      const res = await axios.get(`${SERVER_URL}/api/sessions`)
-      setSessions(res.data)
+      const { data, error } = await supabase
+        .from('sessions')
+        .select('*')
+        .order('created_at', { ascending: false })
+      
+      if (error) throw error
+      setSessions(data || [])
     } catch (err) {
       console.error('Failed to fetch sessions:', err)
     } finally {
@@ -71,7 +78,12 @@ export default function Admin() {
     if (!sessionToDelete) return
     
     try {
-      await axios.delete(`${SERVER_URL}/api/sessions/${sessionToDelete}`)
+      const { error } = await supabase
+        .from('sessions')
+        .delete()
+        .eq('id', sessionToDelete)
+      
+      if (error) throw error
       setSessions(sessions.filter(s => s.id !== sessionToDelete))
       setShowDeleteModal(false)
       setSessionToDelete(null)
@@ -87,7 +99,10 @@ export default function Admin() {
   }
 
   const getThumbnailUrl = (session) => {
-    // Priority: first_photo > static_image > boomerang
+    // Priority: cloud URLs (Supabase Storage) > local URLs
+    if (session.cloud_static_url) return session.cloud_static_url
+    if (session.cloud_boomerang_url) return session.cloud_boomerang_url
+    // Fallback to local
     if (session.first_photo_filename) {
       return `${SERVER_URL}/uploads/${session.first_photo_filename}`
     }
