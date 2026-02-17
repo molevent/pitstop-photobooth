@@ -417,7 +417,8 @@ export default function ReviewScreen({ gifBlob, captures, selectedPhoto, staticI
               <img
                 src={staticPreviewUrl}
                 alt="Static"
-                className="rounded-2xl shadow-2xl max-h-[32vh] md:max-h-[38vh] lg:max-h-[42vh] w-auto"
+                className="rounded-2xl shadow-2xl max-h-[32vh] md:max-h-[38vh] lg:max-h-[42vh] w-auto cursor-pointer hover:opacity-90 transition-opacity"
+                onClick={() => staticImageUrl && window.open(staticImageUrl, '_blank')}
               />
             ) : (
               <div className="w-64 h-48 md:w-80 md:h-60 bg-white/10 rounded-2xl flex items-center justify-center">
