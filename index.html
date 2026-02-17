@@ -63,12 +63,15 @@
           overlay.innerHTML = 
             '<img src="/favicon.png" style="width:80px;height:80px;border-radius:50%;margin-bottom:24px;" alt="PIT.">' +
             '<h1 style="color:white;font-size:24px;margin:0 0 12px;">Pit.CNX Photobooth</h1>' +
-            '<p style="color:rgba(255,255,255,0.7);font-size:16px;line-height:1.6;margin:0 0 32px;max-width:320px;">' +
+            '<p style="color:rgba(255,255,255,0.7);font-size:16px;line-height:1.6;margin:0 0 8px;max-width:320px;">' +
               'กรุณาเปิดใน Safari หรือ Chrome<br>เพื่อใช้งานกล้องถ่ายรูปได้' +
             '</p>' +
-            '<a id="openBtn" href="' + url + '" style="display:inline-block;background:white;color:#1a5c3a;padding:16px 40px;border-radius:999px;font-size:18px;font-weight:700;text-decoration:none;margin-bottom:16px;">เปิดใน Browser</a>' +
+            '<p style="color:rgba(255,255,255,0.5);font-size:14px;line-height:1.6;margin:0 0 32px;max-width:320px;">' +
+              'Please open in Safari or Chrome<br>to use the camera for photos' +
+            '</p>' +
+            '<a id="openBtn" href="' + url + '" style="display:inline-block;background:white;color:#1a5c3a;padding:16px 40px;border-radius:999px;font-size:18px;font-weight:700;text-decoration:none;margin-bottom:16px;">Open in Browser</a>' +
             '<p style="color:rgba(255,255,255,0.4);font-size:12px;margin-top:16px;max-width:300px;line-height:1.5;">' +
-              'กด ⋯ หรือ ⋮ ที่มุมขวาบน<br>แล้วเลือก "Open in Browser" / "เปิดใน Safari"' +
+              'Tap ⋯ or ⋮ at the top right corner<br>then select "Open in Browser" / "Open in Safari"' +
             '</p>';
           
           document.body.appendChild(overlay);
