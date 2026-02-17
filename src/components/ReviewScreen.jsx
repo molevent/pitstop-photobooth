@@ -40,13 +40,17 @@ export default function ReviewScreen({ gifBlob, captures, selectedPhoto, staticI
   // Check if this is an admin/URL-based view (no new upload needed)
   const isExistingSession = !!(urlSessionId || adminSession)
 
-  // Fix URL: replace Docker internal IP with browser-accessible hostname
-  // Nginx proxies /uploads/ to backend, so we use window.location.origin (port 80)
+  // Fix URL: only replace Docker internal IPs with browser-accessible hostname
+  // Leave cloud URLs (Supabase Storage, etc.) untouched
   const fixUrl = (url) => {
     if (!url) return null
     try {
       const parsed = new URL(url)
-      return `${window.location.origin}${parsed.pathname}`
+      // Only fix Docker internal IPs (172.x.x.x, 10.x.x.x, 192.168.x.x)
+      if (/^(172\.|10\.|192\.168\.)/.test(parsed.hostname)) {
+        return `${window.location.origin}${parsed.pathname}`
+      }
+      return url
     } catch {
       return url
     }

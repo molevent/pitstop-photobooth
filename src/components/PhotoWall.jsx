@@ -8,7 +8,11 @@ const fixUrl = (url) => {
   if (!url) return null
   try {
     const parsed = new URL(url)
-    return `${window.location.origin}${parsed.pathname}`
+    // Only fix Docker internal IPs (172.x.x.x, 10.x.x.x, 192.168.x.x)
+    if (/^(172\.|10\.|192\.168\.)/.test(parsed.hostname)) {
+      return `${window.location.origin}${parsed.pathname}`
+    }
+    return url
   } catch {
     return url
   }
