@@ -1,4 +1,4 @@
-import { BrowserRouter, Routes, Route } from 'react-router-dom'
+import { BrowserRouter, Routes, Route, useNavigate } from 'react-router-dom'
 import { useRef, useEffect, useState } from 'react'
 import './App.css'
 import usePitSession from './hooks/usePitSession'
@@ -9,8 +9,11 @@ import PrintCanvas from './components/PrintCanvas'
 import Admin from './components/Admin'
 import PhotoSelector from './components/PhotoSelector'
 import StaticImageCanvas from './components/StaticImageCanvas'
+import SessionViewer from './components/SessionViewer'
+import PhotoWall from './components/PhotoWall'
 
 function MainApp() {
+  const navigate = useNavigate()
   const {
     status,
     captures,
@@ -27,8 +30,9 @@ function MainApp() {
   const printCanvasRef = useRef(null)
   const staticImageRef = useRef(null)
   
-  // State for selected photo
+  // State for selected photo and theme
   const [selectedPhoto, setSelectedPhoto] = useState(null)
+  const [selectedTheme, setSelectedTheme] = useState('original')
 
   // When status becomes 'processing', generate boomerang then go to selecting
   useEffect(() => {
@@ -42,8 +46,9 @@ function MainApp() {
     }
   }, [status, captures, generate, setSelecting])
 
-  const handlePhotoSelect = (photo) => {
+  const handlePhotoSelect = (photo, theme = 'original') => {
     setSelectedPhoto(photo)
+    setSelectedTheme(theme)
     setReview()
   }
 
@@ -58,7 +63,7 @@ function MainApp() {
       <div style={{ position: 'fixed', left: '-9999px', top: '-9999px' }}>
         <PrintCanvas ref={printCanvasRef} captures={captures} />
         {selectedPhoto && (
-          <StaticImageCanvas ref={staticImageRef} photoBlob={selectedPhoto} />
+          <StaticImageCanvas ref={staticImageRef} photoBlob={selectedPhoto} theme={selectedTheme} />
         )}
       </div>
 
@@ -70,6 +75,8 @@ function MainApp() {
           countdown={countdown}
           currentPhoto={currentPhoto}
           onStart={startSession}
+          onAdminNavigate={() => navigate('/admin')}
+          onCancel={reset}
         />
       )}
 
@@ -96,6 +103,7 @@ function MainApp() {
           staticImageRef={staticImageRef}
           printCanvasRef={printCanvasRef}
           onDone={reset}
+          onAdminNavigate={() => navigate('/admin')}
         />
       )}
     </div>
@@ -108,6 +116,10 @@ function App() {
       <Routes>
         <Route path="/" element={<MainApp />} />
         <Route path="/admin" element={<Admin />} />
+        <Route path="/review" element={<ReviewScreen />} />
+        <Route path="/pit/:sessionId" element={<ReviewScreen />} />
+        <Route path="/session/:sessionId" element={<SessionViewer />} />
+        <Route path="/wall" element={<PhotoWall />} />
       </Routes>
     </BrowserRouter>
   )

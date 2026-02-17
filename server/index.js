@@ -2,9 +2,11 @@ import express from 'express'
 import cors from 'cors'
 import multer from 'multer'
 import path from 'path'
+import fs from 'fs'
 import { fileURLToPath } from 'url'
 import { v4 as uuidv4 } from 'uuid'
 import os from 'os'
+import archiver from 'archiver'
 import { db } from './db.js'
 
 const __filename = fileURLToPath(import.meta.url)
@@ -107,6 +109,58 @@ app.delete('/api/sessions/:id', async (req, res) => {
   } catch (err) {
     console.error('Delete session error:', err)
     res.status(500).json({ error: 'Failed to delete session' })
+  }
+})
+
+// Download all files as ZIP, organized by session
+app.get('/download-all', async (req, res) => {
+  try {
+    const sessions = await db.getAllSessions()
+    const uploadsDir = path.join(__dirname, 'uploads')
+
+    res.setHeader('Content-Type', 'application/zip')
+    res.setHeader('Content-Disposition', `attachment; filename=pitstop-photos-${new Date().toISOString().slice(0,10)}.zip`)
+
+    const archive = archiver('zip', { zlib: { level: 5 } })
+    archive.pipe(res)
+
+    // Reverse to get oldest-first (1, 2, 3...)
+    const sorted = [...sessions].reverse()
+
+    sorted.forEach((session, idx) => {
+      const num = String(idx + 1).padStart(3, '0')
+      const folder = `session-${num}`
+
+      if (session.boomerang_filename) {
+        const filePath = path.join(uploadsDir, session.boomerang_filename)
+        if (fs.existsSync(filePath)) {
+          archive.file(filePath, { name: `${folder}/boomerang.gif` })
+        }
+      }
+      if (session.static_image_filename) {
+        const filePath = path.join(uploadsDir, session.static_image_filename)
+        if (fs.existsSync(filePath)) {
+          archive.file(filePath, { name: `${folder}/static.jpg` })
+        }
+      }
+      if (session.print_filename) {
+        const filePath = path.join(uploadsDir, session.print_filename)
+        if (fs.existsSync(filePath)) {
+          archive.file(filePath, { name: `${folder}/print.jpg` })
+        }
+      }
+      if (session.first_photo_filename) {
+        const filePath = path.join(uploadsDir, session.first_photo_filename)
+        if (fs.existsSync(filePath)) {
+          archive.file(filePath, { name: `${folder}/first-photo.jpg` })
+        }
+      }
+    })
+
+    archive.finalize()
+  } catch (err) {
+    console.error('Download all error:', err)
+    res.status(500).json({ error: 'Failed to create download' })
   }
 })
 

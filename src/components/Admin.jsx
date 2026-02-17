@@ -1,7 +1,9 @@
 import { useEffect, useState } from 'react'
 import axios from 'axios'
 import { useNavigate } from 'react-router-dom'
-import { Trash2, Image as ImageIcon, Film, FileImage, X } from 'lucide-react'
+import { Trash2, Image as ImageIcon, Film, FileImage, X, Printer, AlertTriangle, Eye, LayoutGrid, Download } from 'lucide-react'
+import { motion, AnimatePresence } from 'framer-motion'
+import downloadButton from '../../Button/Button-Download.png'
 
 const SERVER_URL = import.meta.env.VITE_SERVER_URL || `http://${window.location.hostname}:3000`
 
@@ -9,7 +11,17 @@ export default function Admin() {
   const [sessions, setSessions] = useState([])
   const [loading, setLoading] = useState(true)
   const [deleteConfirm, setDeleteConfirm] = useState(null)
+  const [showDeleteModal, setShowDeleteModal] = useState(false)
+  const [sessionToDelete, setSessionToDelete] = useState(null)
+  const [printEnabled, setPrintEnabled] = useState(() => {
+    const stored = localStorage.getItem('printEnabled')
+    return stored !== null ? JSON.parse(stored) : false
+  })
   const navigate = useNavigate()
+
+  useEffect(() => {
+    localStorage.setItem('printEnabled', JSON.stringify(printEnabled))
+  }, [printEnabled])
 
   useEffect(() => {
     fetchSessions()
@@ -26,11 +38,22 @@ export default function Admin() {
     }
   }
 
-  const handleClick = (session) => {
-    navigate('/review', { 
+  // View Session (3-panel view) - clicking on image
+  const handleViewSession = (session) => {
+    navigate(`/session/${session.id}`, { 
+      state: { sessionId: session.id }
+    })
+  }
+
+  // View QR Code (review screen) - clicking QR Code button
+  // Sessions are sorted newest-first, so reverse: 1=oldest, highest=newest
+  const handleViewQR = (session, index) => {
+    const sessionNumber = index !== undefined ? sessions.length - index : session.id
+    navigate(`/pit/${sessionNumber}`, { 
       state: { 
         sessionId: session.id,
         boomerangUrl: session.boomerang_url,
+        staticImageUrl: session.static_image_url,
         firstPhotoUrl: session.first_photo_filename 
           ? `${SERVER_URL}/uploads/${session.first_photo_filename}`
           : null
@@ -38,20 +61,29 @@ export default function Admin() {
     })
   }
 
-  const handleDelete = async (sessionId, e) => {
+  const handleDeleteClick = (sessionId, e) => {
     e.stopPropagation()
-    if (deleteConfirm === sessionId) {
-      try {
-        await axios.delete(`${SERVER_URL}/api/sessions/${sessionId}`)
-        setSessions(sessions.filter(s => s.id !== sessionId))
-        setDeleteConfirm(null)
-      } catch (err) {
-        console.error('Failed to delete session:', err)
-        alert('Failed to delete session')
-      }
-    } else {
-      setDeleteConfirm(sessionId)
+    setSessionToDelete(sessionId)
+    setShowDeleteModal(true)
+  }
+
+  const confirmDelete = async () => {
+    if (!sessionToDelete) return
+    
+    try {
+      await axios.delete(`${SERVER_URL}/api/sessions/${sessionToDelete}`)
+      setSessions(sessions.filter(s => s.id !== sessionToDelete))
+      setShowDeleteModal(false)
+      setSessionToDelete(null)
+    } catch (err) {
+      console.error('Failed to delete session:', err)
+      alert('Failed to delete session')
     }
+  }
+
+  const cancelDelete = () => {
+    setShowDeleteModal(false)
+    setSessionToDelete(null)
   }
 
   const getThumbnailUrl = (session) => {
@@ -77,20 +109,61 @@ export default function Admin() {
   }
 
   return (
-    <div className="min-h-screen bg-black p-8">
+    <div className="h-screen bg-black p-8 overflow-y-auto pb-24">
       <div className="flex items-center justify-between mb-8">
         <h1 className="text-white text-4xl font-bold">Admin Gallery</h1>
-        <button 
-          onClick={() => navigate('/')}
-          className="flex items-center gap-2 text-white/50 hover:text-white transition-colors"
-        >
-          <X size={24} />
-          Close
-        </button>
+        
+        {/* Print Toggle */}
+        <div className="flex items-center gap-4">
+          <div className="flex items-center gap-3 bg-white/10 rounded-full px-4 py-2">
+            <Printer size={18} className={printEnabled ? 'text-white' : 'text-white/40'} />
+            <span className="text-white/80 text-sm">Print</span>
+            <button
+              onClick={() => setPrintEnabled(!printEnabled)}
+              className={`relative w-12 h-6 rounded-full transition-colors ${
+                printEnabled ? 'bg-green-500' : 'bg-white/30'
+              }`}
+            >
+              <span
+                className={`absolute top-0.5 left-0.5 w-5 h-5 bg-white rounded-full transition-transform ${
+                  printEnabled ? 'translate-x-6' : 'translate-x-0'
+                }`}
+              />
+            </button>
+            <span className={`text-sm ${printEnabled ? 'text-green-400' : 'text-white/40'}`}>
+              {printEnabled ? 'ON' : 'OFF'}
+            </span>
+          </div>
+          
+          <button 
+            onClick={() => window.open('/wall', '_blank')}
+            className="flex items-center gap-2 bg-gradient-to-r from-green-600 to-emerald-500 text-white px-4 py-2 rounded-full text-sm font-medium hover:opacity-90 transition-opacity"
+          >
+            <LayoutGrid size={16} />
+            Photo Wall
+          </button>
+
+          <a
+            href="/api/download-all"
+            download
+            className="flex items-center gap-2 bg-white/10 hover:bg-white/20 text-white px-4 py-2 rounded-full text-sm font-medium transition-colors"
+          >
+            <Download size={16} />
+            Download All
+          </a>
+
+          <button 
+            onClick={() => navigate('/')}
+            className="flex items-center gap-2 text-white/50 hover:text-white transition-colors"
+          >
+            <X size={24} />
+            Close
+          </button>
+        </div>
       </div>
       
       <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-4">
-        {sessions.map((session) => {
+        {sessions.map((session, index) => {
           const thumbnailUrl = getThumbnailUrl(session)
           const hasPrint = !!session.print_filename
           const hasBoomerang = !!session.boomerang_filename
@@ -99,11 +172,11 @@ export default function Admin() {
           return (
             <div 
               key={session.id}
-              className="cursor-pointer group relative"
+              className="group relative"
             >
               <div 
-                onClick={() => handleClick(session)}
-                className="relative aspect-[3/4] rounded-xl overflow-hidden bg-white/10"
+                onClick={() => handleViewSession(session)}
+                className="cursor-pointer relative aspect-[3/4] rounded-xl overflow-hidden bg-white/10"
               >
                 {thumbnailUrl ? (
                   <img 
@@ -144,27 +217,48 @@ export default function Admin() {
                 </div>
               </div>
               
-              {/* Timestamp and Delete */}
+              {/* Timestamp, Download, View, Delete */}
               <div className="flex items-center justify-between mt-2">
                 <p className="text-white/50 text-xs">
-                  {new Date(session.created_at).toLocaleString('th-TH', {
+                  {new Date(session.created_at).toLocaleString('en-US', {
                     day: 'numeric',
                     month: 'short',
+                    year: 'numeric',
                     hour: '2-digit',
                     minute: '2-digit'
                   })}
                 </p>
-                <button
-                  onClick={(e) => handleDelete(session.id, e)}
-                  className={`p-1 rounded transition-colors ${
-                    deleteConfirm === session.id 
-                      ? 'bg-red-500 text-white' 
-                      : 'text-white/30 hover:text-red-400'
-                  }`}
-                  title={deleteConfirm === session.id ? 'Click again to confirm delete' : 'Delete session'}
-                >
-                  <Trash2 size={16} />
-                </button>
+                <div className="flex items-center gap-2">
+                  {/* View QR Button - Replaces Download */}
+                  <button
+                    type="button"
+                    onClick={(e) => {
+                      e.preventDefault()
+                      e.stopPropagation()
+                      console.log('QR Code clicked', session)
+                      handleViewQR(session, index)
+                    }}
+                    className="px-3 py-1 rounded-full bg-white/90 hover:bg-white text-black text-xs font-medium transition-colors flex items-center gap-1 pointer-events-auto"
+                    style={{ pointerEvents: 'auto' }}
+                    title="View QR Code"
+                  >
+                    <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                      <rect x="3" y="3" width="7" height="7" rx="1"/>
+                      <rect x="14" y="3" width="7" height="7" rx="1"/>
+                      <rect x="14" y="14" width="7" height="7" rx="1"/>
+                      <rect x="3" y="14" width="7" height="7" rx="1"/>
+                    </svg>
+                    QR Code
+                  </button>
+                  {/* Delete Button */}
+                  <button
+                    onClick={(e) => handleDeleteClick(session.id, e)}
+                    className="p-1 rounded transition-colors text-white/30 hover:text-red-400 hover:bg-red-500/20"
+                    title="Delete session"
+                  >
+                    <Trash2 size={16} />
+                  </button>
+                </div>
               </div>
             </div>
           )
@@ -176,6 +270,53 @@ export default function Admin() {
           No sessions yet. Start taking photos!
         </div>
       )}
+
+      {/* Delete Confirmation Modal */}
+      <AnimatePresence>
+        {showDeleteModal && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 z-[100] flex items-center justify-center bg-black/80"
+            onClick={cancelDelete}
+          >
+            <motion.div
+              initial={{ scale: 0.9, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              exit={{ scale: 0.9, opacity: 0 }}
+              className="bg-white rounded-3xl p-8 w-full max-w-sm mx-4 text-center"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <div className="flex justify-center mb-4">
+                <div className="w-16 h-16 bg-red-100 rounded-full flex items-center justify-center">
+                  <AlertTriangle size={32} className="text-red-500" />
+                </div>
+              </div>
+              
+              <h3 className="text-xl font-bold text-gray-800 mb-2">Delete Session?</h3>
+              <p className="text-gray-500 mb-6">
+                This action cannot be undone. The photo and all associated files will be permanently deleted.
+              </p>
+              
+              <div className="flex gap-3">
+                <button
+                  onClick={cancelDelete}
+                  className="flex-1 py-3 px-4 rounded-xl bg-gray-100 hover:bg-gray-200 text-gray-700 font-medium transition-colors"
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={confirmDelete}
+                  className="flex-1 py-3 px-4 rounded-xl bg-red-500 hover:bg-red-600 text-white font-medium transition-colors"
+                >
+                  Delete
+                </button>
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
 
       {/* Legend */}
       <div className="fixed bottom-8 left-8 flex gap-4 text-white/60 text-sm">

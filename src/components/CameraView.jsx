@@ -1,8 +1,10 @@
 import { useCallback } from 'react'
 import Webcam from 'react-webcam'
 import { motion, AnimatePresence } from 'framer-motion'
+import { X } from 'lucide-react'
 import logo from '../assets/logo.png'
-import startButton from '../assets/start-button.png'
+import startButton from '../../Button/Start-butt.png'
+import AdminAccessButton from './AdminAccessButton'
 
 const videoConstraints = {
   facingMode: 'user',
@@ -10,7 +12,7 @@ const videoConstraints = {
   height: { ideal: 1080 },
 }
 
-export default function CameraView({ webcamRef, status, countdown, currentPhoto, onStart }) {
+export default function CameraView({ webcamRef, status, countdown, currentPhoto, onStart, onAdminNavigate, onCancel }) {
   const isCountingDown = status === 'countdown'
   const isCapturing = status === 'capturing'
 
@@ -59,9 +61,15 @@ export default function CameraView({ webcamRef, status, countdown, currentPhoto,
         )}
       </AnimatePresence>
 
-      {/* Photo Counter & Look Here hint */}
+      {/* Photo Counter & Look Here hint & Cancel Button */}
       {(isCountingDown || isCapturing) && (
         <>
+          <button
+            onClick={onCancel}
+            className="absolute top-8 left-8 z-20 p-2 hover:bg-white/10 rounded-full transition-colors"
+          >
+            <X size={28} className="text-white" />
+          </button>
           <div className="absolute top-8 right-8 z-10">
             <span className="text-white/60 text-2xl font-medium tracking-widest">
               {currentPhoto} / 3
@@ -105,6 +113,9 @@ export default function CameraView({ webcamRef, status, countdown, currentPhoto,
           </button>
         </motion.div>
       )}
+
+      {/* Admin Access Button */}
+      <AdminAccessButton onSuccess={onAdminNavigate} />
     </div>
   )
 }

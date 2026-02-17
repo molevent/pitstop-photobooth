@@ -2,12 +2,108 @@
 <html lang="en">
   <head>
     <meta charset="UTF-8" />
-    <link rel="icon" type="image/svg+xml" href="/vite.svg" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Pit.CNX</title>
+
+    <!-- Favicon -->
+    <link rel="icon" type="image/png" href="/favicon.png" />
+    <link rel="apple-touch-icon" href="/favicon.png" />
+
+    <!-- Title -->
+    <title>Pit.CNX Photobooth</title>
+
+    <!-- SEO Meta Tags -->
+    <meta name="description" content="Pit.CNX Photobooth — Capture your moments at Pitstop Chiang Mai. A place to pause, slow down, and move forward." />
+    <meta name="keywords" content="Pit.CNX, Photobooth, Chiang Mai, Pitstop, Photo, GIF, Boomerang" />
+    <meta name="author" content="Pit.CNX" />
+    <meta name="theme-color" content="#1a5c3a" />
+
+    <!-- Open Graph (Facebook, LINE, etc.) -->
+    <meta property="og:type" content="website" />
+    <meta property="og:title" content="Pit.CNX Photobooth" />
+    <meta property="og:description" content="Capture your moments at Pitstop Chiang Mai. A place to pause, slow down, and move forward." />
+    <meta property="og:image" content="/og-image.png" />
+    <meta property="og:site_name" content="Pit.CNX Photobooth" />
+
+    <!-- Twitter Card -->
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:title" content="Pit.CNX Photobooth" />
+    <meta name="twitter:description" content="Capture your moments at Pitstop Chiang Mai. A place to pause, slow down, and move forward." />
+    <meta name="twitter:image" content="/og-image.png" />
   </head>
   <body>
     <div id="root"></div>
+
+    <!-- In-app browser detection: force open in Safari/Chrome -->
+    <script>
+      (function() {
+        var ua = navigator.userAgent || navigator.vendor || window.opera;
+        var isInApp = false;
+        
+        // Detect common in-app browsers
+        if (/Line\//i.test(ua)) isInApp = 'LINE';
+        else if (/FBAN|FBAV|FB_IAB/i.test(ua)) isInApp = 'Facebook';
+        else if (/Instagram/i.test(ua)) isInApp = 'Instagram';
+        else if (/Twitter/i.test(ua)) isInApp = 'Twitter';
+        else if (/MicroMessenger/i.test(ua)) isInApp = 'WeChat';
+        else if (/Snapchat/i.test(ua)) isInApp = 'Snapchat';
+        else if (/TikTok/i.test(ua)) isInApp = 'TikTok';
+        
+        if (isInApp) {
+          // Prevent React from loading
+          document.getElementById('root').style.display = 'none';
+          
+          var url = window.location.href;
+          
+          // Create overlay UI
+          var overlay = document.createElement('div');
+          overlay.style.cssText = 'position:fixed;inset:0;z-index:99999;background:#1a5c3a;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:32px;font-family:-apple-system,BlinkMacSystemFont,sans-serif;text-align:center;';
+          
+          overlay.innerHTML = 
+            '<img src="/favicon.png" style="width:80px;height:80px;border-radius:50%;margin-bottom:24px;" alt="PIT.">' +
+            '<h1 style="color:white;font-size:24px;margin:0 0 12px;">Pit.CNX Photobooth</h1>' +
+            '<p style="color:rgba(255,255,255,0.7);font-size:16px;line-height:1.6;margin:0 0 32px;max-width:320px;">' +
+              'กรุณาเปิดใน Safari หรือ Chrome<br>เพื่อใช้งานกล้องถ่ายรูปได้' +
+            '</p>' +
+            '<a id="openBtn" href="' + url + '" style="display:inline-block;background:white;color:#1a5c3a;padding:16px 40px;border-radius:999px;font-size:18px;font-weight:700;text-decoration:none;margin-bottom:16px;">เปิดใน Browser</a>' +
+            '<p style="color:rgba(255,255,255,0.4);font-size:12px;margin-top:16px;max-width:300px;line-height:1.5;">' +
+              'กด ⋯ หรือ ⋮ ที่มุมขวาบน<br>แล้วเลือก "Open in Browser" / "เปิดใน Safari"' +
+            '</p>';
+          
+          document.body.appendChild(overlay);
+          
+          // Try to force open in external browser
+          var isIOS = /iPhone|iPad|iPod/i.test(ua);
+          var isAndroid = /Android/i.test(ua);
+          
+          var openBtn = document.getElementById('openBtn');
+          
+          if (isIOS) {
+            // iOS: try x-safari scheme or googlechrome scheme
+            openBtn.addEventListener('click', function(e) {
+              e.preventDefault();
+              // Try Safari first
+              var safariUrl = url;
+              window.location.href = safariUrl;
+              // Fallback: copy URL
+              setTimeout(function() {
+                if (navigator.clipboard) {
+                  navigator.clipboard.writeText(url);
+                  alert('ลิงก์ถูกคัดลอกแล้ว กรุณาวางใน Safari');
+                }
+              }, 2000);
+            });
+          } else if (isAndroid) {
+            // Android: try intent scheme to open in Chrome
+            openBtn.addEventListener('click', function(e) {
+              e.preventDefault();
+              var intentUrl = 'intent://' + url.replace(/^https?:\/\//, '') + '#Intent;scheme=https;package=com.android.chrome;end';
+              window.location.href = intentUrl;
+            });
+          }
+        }
+      })();
+    </script>
+
     <script type="module" src="/src/main.jsx"></script>
   </body>
 </html>

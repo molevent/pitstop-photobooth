@@ -1,23 +1,103 @@
 import { useEffect, useState, useCallback } from 'react'
 import { QRCodeSVG } from 'qrcode.react'
 import { motion } from 'framer-motion'
-import { Printer, RotateCcw, Download, Share2 } from 'lucide-react'
+import { useLocation, useParams, useNavigate } from 'react-router-dom'
 import axios from 'axios'
 import bgImage from '../assets/bg.jpg'
 import logo from '../assets/logo.png'
 import logoGreen from '../assets/logo-green.png'
+import tabGif from '../../Button/Tab-GIF.png'
+import tabPhoto from '../../Button/Tab-Photo.png'
+import btnShareStories from '../../Button/Button-Share Stories.png'
+import btnSaveGif from '../../Button/Button-Save Gif.png'
+import btnShare from '../../Button/Button-Share.png'
+import btnSavePhoto from '../../Button/Button-Save Photo.png'
+import btnPrint from '../../Button/Button-Print.png'
+import btnDone from '../../Button/Button-Done.png'
+import AdminAccessButton from './AdminAccessButton'
 
 const SERVER_URL = import.meta.env.VITE_SERVER_URL || `http://${window.location.hostname}:3000`
 
-export default function ReviewScreen({ gifBlob, captures, selectedPhoto, staticImageRef, printCanvasRef, onDone }) {
-  const [uploadStatus, setUploadStatus] = useState('uploading') // uploading | done | error
+export default function ReviewScreen({ gifBlob, captures, selectedPhoto, staticImageRef, printCanvasRef, onDone, onAdminNavigate }) {
+  const location = useLocation()
+  const params = useParams()
+  const navigate = useNavigate()
+  const adminSession = location.state
+  const urlSessionId = params.sessionId
+  
+  const [uploadStatus, setUploadStatus] = useState('uploading')
   const [boomerangUrl, setBoomerangUrl] = useState(null)
   const [staticImageUrl, setStaticImageUrl] = useState(null)
   const [gifPreviewUrl, setGifPreviewUrl] = useState(null)
   const [staticPreviewUrl, setStaticPreviewUrl] = useState(null)
-  const [activePreview, setActivePreview] = useState('gif') // 'gif' | 'static'
+  const [activePreview, setActivePreview] = useState('gif')
+  const [printEnabled, setPrintEnabled] = useState(() => {
+    const stored = localStorage.getItem('printEnabled')
+    return stored !== null ? JSON.parse(stored) : false
+  })
 
-  // Create local preview URL for the GIF
+  // Check if this is an admin/URL-based view (no new upload needed)
+  const isExistingSession = !!(urlSessionId || adminSession)
+
+  // Fix URL: replace Docker internal IP with browser-accessible hostname
+  // Nginx proxies /uploads/ to backend, so we use window.location.origin (port 80)
+  const fixUrl = (url) => {
+    if (!url) return null
+    try {
+      const parsed = new URL(url)
+      return `${window.location.origin}${parsed.pathname}`
+    } catch {
+      return url
+    }
+  }
+
+  // Load existing session data (from Admin navigation or URL like /pit/1)
+  useEffect(() => {
+    async function loadExistingSession() {
+      let bUrl = null
+      let sUrl = null
+
+      if (adminSession?.boomerangUrl) {
+        // Data passed via navigation state from Admin
+        bUrl = fixUrl(adminSession.boomerangUrl)
+        sUrl = adminSession.staticImageUrl ? fixUrl(adminSession.staticImageUrl) : null
+      } else if (urlSessionId) {
+        // Fetch from API by session number (1=oldest, highest=newest)
+        // Sessions are returned newest-first, so reverse: pit/1 = last in array
+        try {
+          const res = await axios.get(`${SERVER_URL}/api/sessions`)
+          const sessions = res.data
+          const sessionNumber = parseInt(urlSessionId)
+          const sessionIndex = sessions.length - sessionNumber
+          if (sessionIndex >= 0 && sessionIndex < sessions.length) {
+            const session = sessions[sessionIndex]
+            bUrl = session.boomerang_url ? fixUrl(session.boomerang_url) : null
+            sUrl = session.static_image_url ? fixUrl(session.static_image_url) : null
+          }
+        } catch (err) {
+          console.error('Failed to fetch session:', err)
+        }
+      } else {
+        // Not an existing session, skip
+        return
+      }
+
+      // Set boomerang URL for QR code AND preview
+      if (bUrl) {
+        setBoomerangUrl(bUrl)
+        setGifPreviewUrl(bUrl)
+        setUploadStatus('done')
+      }
+      // Set static image URL for preview
+      if (sUrl) {
+        setStaticImageUrl(sUrl)
+        setStaticPreviewUrl(sUrl)
+      }
+    }
+    loadExistingSession()
+  }, [adminSession, urlSessionId])
+
+  // Create local preview URL for the GIF (normal session flow)
   useEffect(() => {
     if (gifBlob) {
       const url = URL.createObjectURL(gifBlob)
@@ -26,23 +106,33 @@ export default function ReviewScreen({ gifBlob, captures, selectedPhoto, staticI
     }
   }, [gifBlob])
 
-  // Generate static image preview
+  // Generate static image preview with retry
   useEffect(() => {
+    let timeoutId
     async function generateStaticPreview() {
-      if (selectedPhoto && staticImageRef?.current?.generateBlob) {
-        const blob = await staticImageRef.current.generateBlob()
-        if (blob) {
-          const url = URL.createObjectURL(blob)
-          setStaticPreviewUrl(url)
-          return () => URL.revokeObjectURL(url)
-        }
+      if (!selectedPhoto || !staticImageRef?.current) return
+      
+      // Wait for canvas to be ready
+      if (!staticImageRef.current.isReady()) {
+        timeoutId = setTimeout(generateStaticPreview, 100)
+        return
+      }
+      
+      const blob = await staticImageRef.current.generateBlob()
+      if (blob) {
+        const url = URL.createObjectURL(blob)
+        setStaticPreviewUrl(url)
+        return () => URL.revokeObjectURL(url)
       }
     }
     generateStaticPreview()
+    return () => clearTimeout(timeoutId)
   }, [selectedPhoto, staticImageRef])
 
-  // Auto-upload on mount
+  // Auto-upload on mount (only for new sessions, not admin/URL views)
   useEffect(() => {
+    if (isExistingSession) return
+
     async function upload() {
       try {
         setUploadStatus('uploading')
@@ -211,7 +301,7 @@ export default function ReviewScreen({ gifBlob, captures, selectedPhoto, staticI
     <motion.div
       initial={{ opacity: 0 }}
       animate={{ opacity: 1 }}
-      className="h-screen w-screen flex items-center justify-center p-8"
+      className="h-screen w-screen flex items-center justify-center p-8 overflow-hidden"
       style={{
         backgroundImage: `url(${bgImage})`,
         backgroundSize: 'cover',
@@ -219,38 +309,30 @@ export default function ReviewScreen({ gifBlob, captures, selectedPhoto, staticI
         backgroundPosition: 'center',
       }}
     >
-      <div className="flex flex-col items-center justify-center gap-6 max-w-md w-full">
+      <div className="flex flex-col items-center justify-center gap-4 md:gap-5 max-w-md w-full">
         {/* Logo */}
         <img
           src={logo}
           alt="PIT."
-          className="h-16 w-auto object-contain"
+          className="h-16 md:h-20 lg:h-24 w-auto object-contain pb-[100px] md:pb-[150px] lg:pb-[200px]"
         />
 
         {/* Preview with toggle */}
         <div className="flex flex-col items-center justify-center gap-3">
           {/* Toggle buttons */}
           {staticPreviewUrl && (
-            <div className="flex gap-2 mb-2">
+            <div className="flex gap-2">
               <button
                 onClick={() => setActivePreview('gif')}
-                className={`px-4 py-1 rounded-full text-sm font-medium transition-all ${
-                  activePreview === 'gif'
-                    ? 'bg-white text-black'
-                    : 'bg-white/20 text-white/70'
-                }`}
+                className={`transition-all ${activePreview === 'gif' ? 'opacity-100' : 'opacity-50'}`}
               >
-                GIF
+                <img src={tabGif} alt="GIF" className="h-8 w-auto object-contain" />
               </button>
               <button
                 onClick={() => setActivePreview('static')}
-                className={`px-4 py-1 rounded-full text-sm font-medium transition-all ${
-                  activePreview === 'static'
-                    ? 'bg-white text-black'
-                    : 'bg-white/20 text-white/70'
-                }`}
+                className={`transition-all ${activePreview === 'static' ? 'opacity-100' : 'opacity-50'}`}
               >
-                Static
+                <img src={tabPhoto} alt="Photo" className="h-8 w-auto object-contain" />
               </button>
             </div>
           )}
@@ -261,137 +343,123 @@ export default function ReviewScreen({ gifBlob, captures, selectedPhoto, staticI
               <img
                 src={gifPreviewUrl}
                 alt="Boomerang"
-                className="rounded-2xl shadow-2xl max-h-[30vh] w-auto"
+                className="rounded-2xl shadow-2xl max-h-[35vh] md:max-h-[40vh] lg:max-h-[45vh] w-auto"
               />
             ) : activePreview === 'static' && staticPreviewUrl ? (
               <img
                 src={staticPreviewUrl}
                 alt="Static"
-                className="rounded-2xl shadow-2xl max-h-[30vh] w-auto"
+                className="rounded-2xl shadow-2xl max-h-[32vh] md:max-h-[38vh] lg:max-h-[42vh] w-auto"
               />
             ) : (
-              <div className="w-80 h-60 bg-white/10 rounded-2xl flex items-center justify-center">
-                <span className="text-white/40 text-lg">Generating...</span>
+              <div className="w-64 h-48 md:w-80 md:h-60 bg-white/10 rounded-2xl flex items-center justify-center">
+                <span className="text-white/40 text-base md:text-lg">Generating...</span>
               </div>
             )}
           </div>
         </div>
 
         {/* QR Code + Buttons */}
-        <div className="flex flex-col items-center justify-center gap-5">
+        <div className="flex flex-col items-center justify-center gap-4">
           {/* QR Code */}
           {uploadStatus === 'done' && boomerangUrl ? (
-            <div className="bg-white p-4 rounded-2xl">
+            <div className="bg-white p-10 md:p-12 lg:p-14 rounded-2xl">
               <QRCodeSVG
                 value={boomerangUrl}
-                size={180}
+                size={140}
                 level="H"
                 bgColor="#ffffff"
                 fgColor="#000000"
               />
             </div>
           ) : uploadStatus === 'uploading' ? (
-            <div className="w-[212px] h-[212px] bg-white/10 rounded-2xl flex items-center justify-center">
+            <div className="w-[180px] h-[180px] md:w-[200px] md:h-[200px] lg:w-[220px] lg:h-[220px] bg-white/10 rounded-2xl flex items-center justify-center">
               <motion.div
                 animate={{ rotate: 360 }}
                 transition={{ repeat: Infinity, duration: 1, ease: 'linear' }}
-                className="w-10 h-10 border-4 border-white/30 border-t-white rounded-full"
+                className="w-6 h-6 md:w-8 md:h-8 border-4 border-white/30 border-t-white rounded-full"
               />
             </div>
           ) : (
-            <div className="w-[212px] h-[212px] bg-white/10 rounded-2xl flex items-center justify-center">
-              <span className="text-red-400 text-lg">Upload failed</span>
+            <div className="w-[180px] h-[180px] md:w-[200px] md:h-[200px] lg:w-[220px] lg:h-[220px] bg-white/10 rounded-2xl flex items-center justify-center">
+              <span className="text-red-400 text-sm md:text-base">Upload failed</span>
             </div>
           )}
 
-          <p className="text-white/60 text-lg tracking-[0.3em] uppercase font-medium mb-1">
+          <p className="text-white/60 text-sm md:text-base tracking-[0.3em] uppercase font-medium">
             Scan to Download
           </p>
 
           {/* Download Buttons */}
-          <div className="flex gap-4 flex-wrap justify-center">
+          <div className="flex gap-2 flex-wrap justify-center">
             {/* Share Stories - downloads static image for Instagram */}
             {staticPreviewUrl && (
               <button
-                onClick={handleDownloadStatic}
-                className="flex items-center gap-2 bg-gradient-to-r from-purple-500 to-pink-500 text-white text-sm font-medium 
-                           px-10 py-3 rounded-full hover:opacity-90 active:scale-95 
-                           transition-all duration-150 cursor-pointer border border-white/30"
+                onClick={isExistingSession ? () => window.open(staticImageUrl || staticPreviewUrl, '_blank') : handleDownloadStatic}
+                className="transition-all duration-150 cursor-pointer active:scale-95 hover:opacity-90"
               >
-                <Share2 size={16} />
-                SHARE STORIES
+                <img src={btnShareStories} alt="Share Stories" className="h-6 w-auto object-contain" />
               </button>
             )}
             
-            {activePreview === 'gif' && gifBlob && (
+            {activePreview === 'gif' && (gifBlob || isExistingSession) && (
               <>
                 <button
-                  onClick={handleDownload}
-                  className="flex items-center gap-2 bg-white/10 text-white text-sm font-medium 
-                             px-10 py-3 rounded-full hover:bg-white/20 active:scale-95 
-                             transition-all duration-150 cursor-pointer border border-white/30"
+                  onClick={isExistingSession ? () => window.open(boomerangUrl, '_blank') : handleDownload}
+                  className="transition-all duration-150 cursor-pointer active:scale-95 hover:opacity-90"
                 >
-                  <Download size={16} />
-                  SAVE GIF
+                  <img src={btnSaveGif} alt="Save GIF" className="h-6 w-auto object-contain" />
                 </button>
                 <button
-                  onClick={handleShare}
-                  className="flex items-center gap-2 bg-white/10 text-white text-sm font-medium 
-                             px-10 py-3 rounded-full hover:bg-white/20 active:scale-95 
-                             transition-all duration-150 cursor-pointer border border-white/30"
+                  onClick={isExistingSession ? () => window.open(boomerangUrl, '_blank') : handleShare}
+                  className="transition-all duration-150 cursor-pointer active:scale-95 hover:opacity-90"
                 >
-                  <Share2 size={16} />
-                  SHARE
+                  <img src={btnShare} alt="Share" className="h-6 w-auto object-contain" />
                 </button>
               </>
             )}
             {activePreview === 'static' && staticPreviewUrl && (
               <button
-                onClick={handleDownloadStatic}
-                className="flex items-center gap-2 bg-white/10 text-white text-sm font-medium 
-                           px-10 py-3 rounded-full hover:bg-white/20 active:scale-95 
-                           transition-all duration-150 cursor-pointer border border-white/30"
+                onClick={isExistingSession ? () => window.open(staticImageUrl || staticPreviewUrl, '_blank') : handleDownloadStatic}
+                className="transition-all duration-150 cursor-pointer active:scale-95 hover:opacity-90"
               >
-                <Download size={16} />
-                SAVE PHOTO
+                <img src={btnSavePhoto} alt="Save Photo" className="h-6 w-auto object-contain" />
               </button>
             )}
           </div>
 
-          {/* PRINT Button */}
-          <button
-            onClick={handlePrint}
-            className="flex items-center gap-3 bg-white text-black text-xl font-bold 
-                       px-20 py-6 rounded-full hover:bg-white/90 active:scale-95 
-                       transition-all duration-150 shadow-2xl cursor-pointer my-1"
-          >
-            <Printer size={24} />
-            PRINT
-          </button>
+          {/* PRINT Button - only show when enabled in Admin */}
+          {printEnabled && (
+            <button
+              onClick={handlePrint}
+              className="transition-all duration-150 cursor-pointer active:scale-95 hover:opacity-90"
+            >
+              <img src={btnPrint} alt="Print" className="h-8 w-auto object-contain" />
+            </button>
+          )}
 
           {/* DONE Button */}
           <button
-            onClick={onDone}
-            className="flex items-center gap-2 text-white/50 text-lg font-medium 
-                       px-14 py-4 rounded-full border border-white/20 
-                       hover:border-white/40 hover:text-white/70 
-                       active:scale-95 transition-all duration-150 cursor-pointer"
+            onClick={isExistingSession ? () => navigate('/admin') : onDone}
+            className="transition-all duration-150 cursor-pointer active:scale-95 hover:opacity-80"
           >
-            <RotateCcw size={18} />
-            DONE
+            <img src={btnDone} alt="Done" className="h-6 w-auto object-contain" />
           </button>
 
           {/* Hashtags */}
-          <p className="text-white/40 text-xs tracking-wider mt-4 text-center max-w-xs leading-relaxed">
+          <p className="text-white/40 text-[10px] md:text-xs tracking-wider text-center max-w-xs leading-relaxed">
             #pitstopcnx #ChiangMai #NewSpace #APlaceToPause #SlowDownMoveForward
           </p>
 
           {/* Instagram */}
-          <p className="text-white/60 text-sm tracking-wider mt-3 text-center font-medium">
+          <p className="text-white/60 text-xs md:text-sm tracking-wider text-center font-medium">
             @pitstopcnx
           </p>
         </div>
       </div>
+
+      {/* Admin Access Button */}
+      <AdminAccessButton onSuccess={onAdminNavigate} />
     </motion.div>
   )
 }
