@@ -12,6 +12,7 @@ export default function usePitSession() {
   const [countdown, setCountdown] = useState(null)
   const [currentPhoto, setCurrentPhoto] = useState(0)
   const webcamRef = useRef(null)
+  const cancelledRef = useRef(false)
 
   const sleep = (ms) => new Promise((r) => setTimeout(r, ms))
 
@@ -35,6 +36,7 @@ export default function usePitSession() {
 
   const runCountdown = async () => {
     for (let i = COUNTDOWN_SECONDS; i >= 1; i--) {
+      if (cancelledRef.current) return
       setCountdown(i)
       await sleep(1000)
     }
@@ -42,15 +44,18 @@ export default function usePitSession() {
   }
 
   const startSession = useCallback(async () => {
+    cancelledRef.current = false
     setCaptures([])
     setCurrentPhoto(0)
     const photos = []
 
     for (let i = 0; i < TOTAL_PHOTOS; i++) {
+      if (cancelledRef.current) return
       setCurrentPhoto(i + 1)
       setStatus('countdown')
       await runCountdown()
 
+      if (cancelledRef.current) return
       setStatus('capturing')
       const dataURL = capturePhoto()
       if (dataURL) {
@@ -60,14 +65,17 @@ export default function usePitSession() {
       // Brief preview pause between shots (not after the last one)
       if (i < TOTAL_PHOTOS - 1) {
         await sleep(PREVIEW_SECONDS * 1000)
+        if (cancelledRef.current) return
       }
     }
 
+    if (cancelledRef.current) return
     setCaptures(photos)
     setStatus('processing')
   }, [capturePhoto])
 
   const reset = useCallback(() => {
+    cancelledRef.current = true
     setStatus('idle')
     setCaptures([])
     setCountdown(null)
