@@ -1,6 +1,9 @@
 import { useState, useCallback } from 'react'
 import GIF from 'gif.js.optimized'
-import logoGreen from '../assets/logo-green.png'
+import templateGif from '../assets/template-gif.png'
+
+const GIF_WIDTH = 540
+const GIF_HEIGHT = 960
 
 export default function useBoomerang() {
   const [gifBlob, setGifBlob] = useState(null)
@@ -15,17 +18,17 @@ export default function useBoomerang() {
 
       setIsGenerating(true)
 
-      // Load logo image first
-      const logoImg = new Image()
-      logoImg.crossOrigin = 'anonymous'
+      // Load template overlay (PNG with transparency)
+      const templateImg = new Image()
+      templateImg.crossOrigin = 'anonymous'
       
-      logoImg.onload = () => {
+      templateImg.onload = () => {
         const gif = new GIF({
           workers: 2,
           quality: 10,
           workerScript: '/gif.worker.js',
-          width: 640,
-          height: 480,
+          width: GIF_WIDTH,
+          height: GIF_HEIGHT,
           repeat: 0,
         })
 
@@ -41,34 +44,38 @@ export default function useBoomerang() {
             images[i] = img
             loaded++
             if (loaded === sequence.length) {
-              // Create a canvas to draw frames at consistent size
               const canvas = document.createElement('canvas')
-              canvas.width = 640
-              canvas.height = 480
+              canvas.width = GIF_WIDTH
+              canvas.height = GIF_HEIGHT
               const ctx = canvas.getContext('2d')
 
-              // Logo dimensions (positioned at top-right)
-              const logoW = 80
-              const logoH = (logoImg.height / logoImg.width) * logoW
-              const logoX = 640 - logoW - 20
-              const logoY = 20
-
               images.forEach((image) => {
-                ctx.clearRect(0, 0, 640, 480)
+                ctx.clearRect(0, 0, GIF_WIDTH, GIF_HEIGHT)
                 
-                // Draw image covering the canvas (center-crop)
-                const scale = Math.max(640 / image.width, 480 / image.height)
-                const w = image.width * scale
-                const h = image.height * scale
-                const x = (640 - w) / 2
-                const y = (480 - h) / 2
-                ctx.drawImage(image, x, y, w, h)
+                // Center-crop photo to 9:16 ratio (no stretching)
+                const targetRatio = GIF_WIDTH / GIF_HEIGHT // 9:16
+                const photoRatio = image.width / image.height
                 
-                // Draw logo on top (semi-transparent white background for visibility)
-                ctx.save()
-                ctx.globalAlpha = 0.9
-                ctx.drawImage(logoImg, logoX, logoY, logoW, logoH)
-                ctx.restore()
+                let sx, sy, sWidth, sHeight
+                
+                if (photoRatio > targetRatio) {
+                  // Photo is wider — crop sides
+                  sHeight = image.height
+                  sWidth = sHeight * targetRatio
+                  sx = (image.width - sWidth) / 2
+                  sy = 0
+                } else {
+                  // Photo is taller — crop top/bottom
+                  sWidth = image.width
+                  sHeight = sWidth / targetRatio
+                  sx = 0
+                  sy = (image.height - sHeight) / 2
+                }
+                
+                ctx.drawImage(image, sx, sy, sWidth, sHeight, 0, 0, GIF_WIDTH, GIF_HEIGHT)
+                
+                // Overlay template on top
+                ctx.drawImage(templateImg, 0, 0, GIF_WIDTH, GIF_HEIGHT)
                 
                 gif.addFrame(ctx, { copy: true, delay: 300 })
               })
@@ -91,12 +98,11 @@ export default function useBoomerang() {
         })
       }
       
-      logoImg.onerror = () => {
-        // If logo fails to load, continue without logo
-        reject(new Error('Failed to load logo'))
+      templateImg.onerror = () => {
+        reject(new Error('Failed to load GIF template'))
       }
       
-      logoImg.src = logoGreen
+      templateImg.src = templateGif
     })
   }, [])
 
