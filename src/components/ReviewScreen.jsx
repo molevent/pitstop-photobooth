@@ -30,7 +30,7 @@ export default function ReviewScreen({ gifBlob, captures, selectedPhoto, staticI
   const [staticImageUrl, setStaticImageUrl] = useState(null)
   const [gifPreviewUrl, setGifPreviewUrl] = useState(null)
   const [staticPreviewUrl, setStaticPreviewUrl] = useState(null)
-  const [activePreview, setActivePreview] = useState('gif')
+  const [activePreview, setActivePreview] = useState('static')
   const [printEnabled, setPrintEnabled] = useState(() => {
     const stored = localStorage.getItem('printEnabled')
     return stored !== null ? JSON.parse(stored) : false
@@ -168,8 +168,11 @@ export default function ReviewScreen({ gifBlob, captures, selectedPhoto, staticI
           headers: { 'Content-Type': 'multipart/form-data' },
         })
 
-        setBoomerangUrl(res.data.boomerangUrl)
-        setStaticImageUrl(res.data.staticImageUrl)
+        // Fix URLs: replace Docker internal IP with browser-accessible origin
+        const fixedBoomerangUrl = res.data.boomerangUrl ? fixUrl(res.data.boomerangUrl) : null
+        const fixedStaticUrl = res.data.staticImageUrl ? fixUrl(res.data.staticImageUrl) : null
+        setBoomerangUrl(fixedBoomerangUrl)
+        setStaticImageUrl(fixedStaticUrl)
         setUploadStatus('done')
       } catch (err) {
         console.error('Upload failed:', err)
@@ -361,11 +364,11 @@ export default function ReviewScreen({ gifBlob, captures, selectedPhoto, staticI
 
         {/* QR Code + Buttons */}
         <div className="flex flex-col items-center justify-center gap-4">
-          {/* QR Code */}
-          {uploadStatus === 'done' && boomerangUrl ? (
+          {/* QR Code - switches based on active tab */}
+          {uploadStatus === 'done' && (boomerangUrl || staticImageUrl) ? (
             <div className="bg-white p-10 md:p-12 lg:p-14 rounded-2xl">
               <QRCodeSVG
-                value={boomerangUrl}
+                value={activePreview === 'static' && staticImageUrl ? staticImageUrl : (boomerangUrl || staticImageUrl)}
                 size={140}
                 level="H"
                 bgColor="#ffffff"
